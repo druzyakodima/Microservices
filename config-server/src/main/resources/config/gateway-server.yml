@@ -1,0 +1,60 @@
+server:
+  port: 8072
+
+eureka:
+  instance:
+    preferIpAddress: true
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8070/eureka/
+
+#Автоматический поиск сервисов при помощи eureka или любой другой системы обнаружения служб
+spring:
+  zipkin:
+    baseUrl: http://zipkin:9411
+    sleuth:
+      sampler:
+        percentage: 1
+  cloud:
+    loadbalancer.ribbon.enabled: false
+    gateway:
+      default-filters:
+        - RemoveRequestHeader=Cookie
+        - RemoveRequestHeader=Set-Cookie
+      discovery:
+        locator:
+          lower-case-service-id: true
+          enabled: true
+
+
+# - RemoveRequestHeader= Cookie, Set-Cookie. Cписок заголовков которые не нужно пропускать. По умолчанию шлюз не пропускает эти заголовки и Authorization
+
+#Так добавляется в ручную
+#spring:
+#  cloud:
+#    loadbalancer.ribbon.enabled: false
+#    gateway:
+#      routes:
+#        - id: organization-service
+#          uri: lb://organization-service
+#          predicates:
+#            - Path=/organization/**
+#          filters:
+#            - RewritePath=/organization/(?<path>.*), /$\{path}
+#            - RemoveRequestHeader= Cookie,Set-Cookie
+#        - id: licensing-service
+#          uri: lb://licensing-service
+#          predicates:
+#            - Path=/license/**
+#          filters:
+#            - RewritePath=/license/(?<path>.*), /$\{path}
+#            - RemoveRequestHeader= Cookie, Set-Cookie
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+

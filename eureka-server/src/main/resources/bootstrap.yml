@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: eureka-server # Имя службы eureka, которое клиент spring cloud config будет искать
+  cloud:
+    config:
+      uri: http://localhost:8071 # Местоположение службы config server
+
+
+    loadbalancer: # по умолчанию стоит ribbon его нужно отключать, что использовать spring cloud loadbalancer
+      ribbon:
+        enabled: false
+
+
+#Это конфигурации для файла конфигураций для Eureka например сейчас этот файл лежит на git /config/eureka-server.yml
+#server:
+#  port: 8070 # порт прослушиваемый сервером Eureka Server
+#eureka:
+#  instance:
+#    hostname:  localhost #Имя хоста, где находится экземпляр Eureka URL службы
+#  client:
+#    register-with-eureka: false # Запретить серверу config server регистрироваться в Eureka
+#    fetch-registry: false # Запретить кешировать информацию из реестра
+#    service-url:
+#      default-zone: http://${eureka.instance.hostname}:${server.port}/eureka/
+#  server:
+#    wait-time-in-ms-when-sync-empty: 5   # начальное время ожидания, прежде чем сервер начнёт принимать запросы

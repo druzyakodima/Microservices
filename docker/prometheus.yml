@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+scrape_configs:
+  - job_name: 'licensing-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'licensing-service:8082' ]
+  - job_name: 'organization-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'organization-service:8180' ]
+
+
+#   evaluation_interval: 5s - Устанавливает частоту применения правил оценки раз в 5с

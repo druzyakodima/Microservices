@@ -1,0 +1,283 @@
+version: '3.7'
+
+services:
+  database:
+    image: postgres:15
+    restart: on-failure
+    container_name: database
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=258046dimka
+      - POSTGRES_DB=ostock_dev
+
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/1-init.sql
+      - ./data.sql:/docker-entrypoint-initdb.d/2-data.sql
+    ports:
+      - "5433:5432"
+
+    networks:
+      backend:
+        aliases:
+          - "database"
+
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  config-server:
+    image: ostock/config-server:0.0.1-SNAPSHOT
+
+    ports:
+      - "8071:8071"
+    restart: on-failure
+    environment:
+      SPRING_PROFILES_ACTIVE: git
+      ENCRYPT_KEY: fje83Ki8403Iod87dne7Yjsl3THuah48jfuO9j4U2hf64Ks
+
+    networks:
+      backend:
+        aliases:
+          - "config-server"
+
+  eureka-server:
+    image: ostock/eureka-server:0.0.1-SNAPSHOT
+
+    environment:
+      SPRING_CLOUD_CONFIG_URI: "http://config-server:8071"
+
+    restart: on-failure
+    depends_on:
+      database:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+    ports:
+      - "8070:8070"
+    networks:
+      backend:
+        aliases:
+          - "eureka-server"
+
+  keycloak:
+    image: jboss/keycloak
+    restart: on-failure
+    environment:
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    networks:
+      backend:
+        aliases:
+          - "keycloak"
+
+  gateway-server:
+    image: ostock/geteway-server:0.0.1-SNAPSHOT
+
+    environment:
+      SPRING_CLOUD_CONFIG_URI: "http://config-server:8071"
+      SPRING_CLOUD_EUREKA_URI: "http://eureka-server:8070"
+
+    restart: on-failure
+    depends_on:
+      database:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+
+    ports:
+      - "8072:8072"
+
+    networks:
+      backend:
+        aliases:
+          - "license-service"
+
+  licensing-service:
+    image: ostock/license-service:0.0.2-SNAPSHOT
+    deploy:
+      mode: replicated
+      replicas: 2
+
+    environment:
+      SPRING_PROFILES_ACTIVE: "dev"
+      SPRING_CLOUD_CONFIG_URI: "http://config-server:8071"
+    restart: on-failure
+    depends_on:
+      database:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+      kafka-server:
+        condition: service_started
+    ports:
+      - "8082-8083:8080"
+
+    networks:
+      backend:
+        aliases:
+          - "license-service"
+
+
+  organization-service:
+    image: ostock/organization-service:0.0.1-SNAPSHOT
+    deploy:
+      mode: replicated
+      replicas: 2
+    environment:
+      SPRING_PROFILES_ACTIVE: "dev"
+      SPRING_CLOUD_CONFIG_URI: "http://config-server:8071"
+    restart: on-failure
+    depends_on:
+      database:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+      kafka-server:
+        condition: service_started
+    ports:
+      - "8180-8181:8181"
+
+    networks:
+      backend:
+        aliases:
+          - "organization-service"
+
+  zookeeper:
+    image: wurstmeister/zookeeper:latest
+    ports:
+      - "2181:2181"
+    networks:
+      backend:
+        aliases:
+          - "zookeeper"
+
+  kafka-server:
+    image: wurstmeister/kafka:latest
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_ADVERTISED_HOST_NAME=kafka-server
+      - KAFKA_ADVERTISED_PORT=9092
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CREATE_TOPICS=dresses:1:1,ratings:1:1
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    depends_on:
+      - zookeeper
+    networks:
+      backend:
+        aliases:
+          - "kafka-server"
+
+  redis-server:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      backend:
+        aliases:
+          - "redis"
+
+#ports:
+#  - "9300:9300" - Порт для связи с кластером
+#  - "9200:9200" - Порт для запросов REST
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.7.0
+    container_name: elasticsearch
+    environment:
+      - node.name=elasticsearch
+      - discovery.type=single-node
+      - cluster.name=docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./esdata:/usr/share/elasticsearch/data
+    ports:
+      - "9300:9300"
+      - "9200:9200"
+    networks:
+      backend:
+        aliases:
+          - "elasticsearch"
+
+  kibana:
+      image: docker.elastic.co/kibana/kibana:7.7.0
+      container_name: kibana
+      environment:
+        ELASTICSEARCH_URL: "http://elasticsearch:9300"
+      ports:
+        - "5601:5601"
+      networks:
+        backend:
+          aliases:
+            - "kibana"
+
+# command: logstash -f /etc/logstash/conf.d/logstash.conf  Загружает конфигурации Logstash из указанного файла
+# volumes:
+#   - ./config:/etc/logstash/conf.d  Монтирует каталог с конфигурационным файлом в запущенный контейнер Logstash
+  logstash:
+      image: docker.elastic.co/logstash/logstash:7.7.0
+      container_name: logstash
+      command: logstash -f /etc/logstash/conf.d/logstash.conf
+      volumes:
+        - ./config:/etc/logstash/conf.d
+      ports:
+        - "5000:5000"
+      networks:
+        backend:
+          aliases:
+            - "logstash"
+
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    depends_on:
+      - elasticsearch
+    environment:
+      - STORAGE_TYPE=elasticsearch
+      - "ES_HOSTS=elasticsearch:9300"
+    ports:
+      - "9411:9411"
+    networks:
+      backend:
+        aliases:
+          - "zipkin"
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    container_name: prometheus
+    networks:
+      backend:
+        aliases:
+          - "prometheus"
+
+  grafana:
+      image: "grafana/grafana:latest"
+      ports:
+        - "3000:3000"
+      environment:
+        - GF_SECURITY_ADMIN_USER=admin
+        - GF_SECURITY_ADMIN_PASSWORD=password
+      container_name: grafana
+      networks:
+        backend:
+          aliases:
+            - "grafana"
+
+networks:
+  backend:
+    driver: bridge

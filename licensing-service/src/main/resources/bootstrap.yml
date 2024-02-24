@@ -1,0 +1,97 @@
+spring:
+  application:
+    name: licensing-service
+  #профиль определяет окружение в котором должна запуститься служба
+  profiles:
+    active: dev
+  cloud:
+    config:
+      uri: http://localhost:8071
+
+logging:
+  level:
+    com.netflix: WARN
+    org.springframework.web: WARN
+    com.optimagrowth: DEBUG
+
+#Настройки для шаблона "Размыкателя цепи"
+# licenseService Конфигурации экземпляра службы лицензий (имя, данное размыкателю цепи в аннотации)
+# registerHealthIndicator Следует ли экспортировать конфигурации через конечную точку /health.
+# waitDurationInOpenState Продолжительность ожидания в разомкнутом состоянии. По умолчанию 60000 мс
+# failureRateThreshold Порог частоты отказов в процентах. По умолчанию 50
+# recordExceptions Исключения, которые должны расцениваться как сбои. По умолчанию все исключения == сбои
+  # organizationService Конфигурации экземпляра службы организаций (имя, данное размыкателю цепи в аннотации)
+resilience4j.circuitbreaker:
+  instances:
+    licenseService:
+      registerHealthIndicator: true
+      ringBufferSizeInClosedState: 5
+      ringBufferSizeInHalfOpenState: 3
+      waitDurationInOpenState: 10s
+      failureRateThreshold: 50
+      recordExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+        - java.io.IOException
+        - java.util.concurrent.TimeoutException
+        - org.springframework.web.client.ResourceAccessException
+    organizationService:
+      registerHealthIndicator: true
+      ringBufferSizeInClosedState: 6
+      ringBufferSizeInHalfOpenState: 4
+      waitDurationInOpenState: 20s
+      failureRateThreshold: 60
+
+
+# Настройки для шаблона "Герметичный отсек"
+#"Герметичный отсек" с использованием семафоров
+# Максимальное количество одновременных вызовов. По умолчанию 25
+# Максимальная продолжительность блокировки потока. По умолчанию 0
+resilience4j.bulkhead:
+    instances:
+      bulkheadLicenseService:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 10ms
+
+
+
+#"Герметичный отсек" с использованием пула потоков
+# maxThreadPoolSize - Максимальное количество потоков в пуле. По умолчанию Runtime.getRuntime().AvailableProcessor
+# coreThreadPoolSize - Размер основного пула потоков. По умолчанию Runtime.getRuntime().AvailableProcessor
+# queueCapacity - Вместимость очереди. По умолчанию 100
+# keep-alive-duration - Максимальное время, в течении которого простаивающие потоки ждут новых заданий перед завершением. По умолчанию 20мс
+resilience4j.thread-pool-bulkhead:
+  instances:
+    bulkheadLicenseService:
+      maxThreadPoolSize: 100
+      coreThreadPoolSize: 100
+      queueCapacity: 100
+
+#  Настройки для шаблона "Повторных попыток"
+# max-retry-attempts Максимальное количество повторных попыток. По умолчанию 3
+# wait-duration Время ожидания между попытками. По умолчанию 500мс
+# retry-exceptions Список исключений, после которых можно выполнять повторные попытки.
+resilience4j.retry:
+  instances:
+    retryLicenseService:
+      max-retry-attempts: 5
+      wait-duration: 10000
+      retry-exceptions:
+        - java.util.concurrent.TimeoutException
+
+# Настройки для шаблона "Ограничитель частоты"
+# timeout-duration Время, в течении которого поток ожидает разрешения. По умолчанию 5с
+# limit-refresh-period Период обновления ограничений. По умолчанию 500 наносекунд
+# limit-for-period Количество разрешений, доступных в течение периода обновлений ограничений. По умолчанию
+resilience4j.ratelimiter:
+  instances:
+    licenseService:
+      timeout-duration: 1000ms
+      limit-refresh-period: 5000
+      limit-for-period: 5
+
+
+
+#spring.datasource:
+#  data: classpath*:/data.sql
+#  schema: classpath*:/init.sql
+#  initialization-mode: always

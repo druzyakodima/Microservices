@@ -1,0 +1,43 @@
+#Если хотите хранить конфиг данные в Vault
+#spring:
+#  application:
+#    name: config-server
+#  profiles:
+#    active: vault
+#  cloud:
+#    config:
+#      server:
+#        vault:
+#          port: 8200
+#          host: 127.0.0.1
+#          kv-version: 2
+#
+#server:
+#  port: 8071
+#
+#encrypt:
+#  key: secretkey # нужно делать ключ в качестве случайного набора букв и цифр
+
+#Если хотите хранить конфиг данные в git или использовать локальный config, vault тоже можем добавить тут
+spring:
+  application:
+    name: config-server
+  profiles:
+    active: native #, git
+  cloud:
+    config:
+      server:
+        native:
+          search-locations: classpath:/config
+#        git:
+#          uri: https://github.com/druzyakodima/config.git # адрес где лежат конфигурационные данные
+#          search-paths: licensing-service, eureka-server, organization-service, gateway-server  # можно указать только licensing-service
+#          username: druzyakodima
+#          password: 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 # срок истечения токена 30 дней я поставил
+#          default-label: main # вместо master
+
+server:
+  port: 8071
+
+encrypt:
+  key: fje83Ki8403Iod87dne7Yjsl3THuah48jfuO9j4U2hf64Ks # нужно делать ключ в качестве случайного набора букв и цифр
